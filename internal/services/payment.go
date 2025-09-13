@@ -66,6 +66,7 @@ func (s *paymentService) ProcessPayment(ctx *gin.Context, req *models.PaymentReq
 	// Simulate payment processing
 	go s.simulatePaymentProcessing(payment)
 
+	s.logger.Info("Payment Executed")
 	return payment, nil
 }
 
