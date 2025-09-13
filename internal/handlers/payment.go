@@ -56,10 +56,10 @@ func (h *PaymentHandler) GetPaymentByTransactionID(c *gin.Context) {
 
 func (h *PaymentHandler) GetAll(c *gin.Context) {
 	payment, err := h.paymentService.GetAll()
-	// if err != nil {
-	// 	response.ErrorResponse(c, http.StatusInternalServerError, "Failed to get all payment", err)
-	// 	return
-	// }
+	if err != nil {
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to get all payment", err)
+		return
+	}
 
 	response.SuccessResponse(c, http.StatusOK, "success", payment)
 }
