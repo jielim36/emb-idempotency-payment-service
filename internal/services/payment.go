@@ -82,7 +82,9 @@ func (s *paymentService) simulatePaymentProcessing(payment *models.Payment) {
 	}
 
 	// Update payment status
-	s.paymentRepo.Update(payment)
+	if err := s.paymentRepo.Update(payment); err != nil {
+		s.logger.Error(err)
+	}
 }
 
 func (s *paymentService) getByTransactionIdAndUserId(payment *models.PaymentRequest) (*models.Payment, error) {
