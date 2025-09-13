@@ -7,7 +7,9 @@ import (
 
 // Simulate redis
 type LockManager struct {
-	locks sync.Map // key: idempotencyKey(transactionID), value: *sync.Mutex
+	// key: idempotencyKey(transactionID), value: *sync.Mutex
+	// Enhance: apply worker to clear expired locks everyday
+	locks sync.Map
 }
 
 func NewLockManager() *LockManager {

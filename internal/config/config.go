@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -83,6 +82,5 @@ func getEnvOrPanic(key string) string {
 	if value == "" {
 		panic("Missing required environment variable: " + key)
 	}
-	fmt.Printf("Environment: [%s]=%s", key, value)
 	return value
 }
