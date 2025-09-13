@@ -11,6 +11,6 @@ const (
 
 func RegisterValidators() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterValidation(DecimalGreaterThan, DecimalGt)
+		_ = v.RegisterValidation(DecimalGreaterThan, DecimalGt)
 	}
 }
