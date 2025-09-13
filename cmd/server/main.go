@@ -9,6 +9,7 @@ import (
 	"payment-service/internal/repositories"
 	"payment-service/internal/routes"
 	"payment-service/internal/services"
+	"payment-service/internal/validator"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,6 +37,9 @@ func main() {
 
 	// Setup routes
 	router := routes.RegisterRoutes(paymentHandler)
+
+	// Register validators
+	validator.RegisterValidators()
 
 	// Start server
 	log.Printf("Starting %s v%s on port %s", cfg.App.Name, cfg.App.Version, cfg.Server.Port)

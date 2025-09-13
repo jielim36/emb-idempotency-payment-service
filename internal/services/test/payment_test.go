@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -19,7 +20,7 @@ func TestProcessPayment(t *testing.T) {
 	ctx := &gin.Context{}
 	req := &models.PaymentRequest{
 		UserID:        "user123",
-		Amount:        100,
+		Amount:        decimal.NewFromInt(100),
 		TransactionID: "tx123",
 	}
 
@@ -49,7 +50,7 @@ func TestProcessPaymentConcurrent(t *testing.T) {
 	ctx := &gin.Context{}
 	req := &models.PaymentRequest{
 		UserID:        "user123",
-		Amount:        100,
+		Amount:        decimal.NewFromInt(100),
 		TransactionID: "tx_concurrent",
 	}
 
