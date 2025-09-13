@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"payment-service/internal/database"
 	"payment-service/internal/models"
 	"payment-service/internal/redis"
 	"payment-service/internal/repositories"
@@ -22,15 +23,22 @@ type PaymentService interface {
 
 type paymentService struct {
 	logger      logger.Logger
+	db          *gorm.DB
 	lockManager *redis.LockManager
 	paymentRepo repositories.PaymentRepository
+	walletRepo  repositories.WalletRepository
 }
 
-func NewPaymentService(paymentRepo repositories.PaymentRepository) PaymentService {
+func NewPaymentService(
+	paymentRepo repositories.PaymentRepository,
+	walletRepo repositories.WalletRepository,
+) PaymentService {
 	return &paymentService{
 		logger:      logger.Logger{},
+		db:          database.GetDB(),
 		lockManager: redis.NewLockManager(),
 		paymentRepo: paymentRepo,
+		walletRepo:  walletRepo,
 	}
 }
 
@@ -49,6 +57,16 @@ func (s *paymentService) ProcessPayment(ctx *gin.Context, req *models.PaymentReq
 	} else if exist != nil {
 		s.logger.Info("found existing payment...")
 		return exist, nil
+	}
+
+	// Start processing
+	wallet, err := s.walletRepo.GetByUserId(req.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Amount.GreaterThan(wallet.Balance) {
+		return nil, errors.New("insufficient balance")
 	}
 
 	// Create payment record
@@ -81,9 +99,30 @@ func (s *paymentService) simulatePaymentProcessing(payment *models.Payment) {
 		payment.Status = models.StatusFailed
 	}
 
-	// Update payment status
-	if err := s.paymentRepo.Update(payment); err != nil {
-		s.logger.Error(err)
+	// Skip for unit test
+	if s.db == nil {
+		return
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Update payment status
+		if err := s.paymentRepo.Update(tx, payment); err != nil {
+			return err
+		}
+
+		wallet, err := s.walletRepo.GetForUpdate(tx, payment.UserID)
+		if err != nil {
+			return err
+		}
+
+		wallet.Credit(payment.Amount)
+		if err := s.walletRepo.UpdateBalance(tx, wallet); err != nil {
+			return err
+		}
+
+		return err
+	}); err != nil {
+		s.logger.Error(err, "Failed to simulate payment processing")
 	}
 }
 

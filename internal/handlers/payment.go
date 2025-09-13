@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"payment-service/internal/models"
@@ -14,11 +15,13 @@ import (
 
 type PaymentHandler struct {
 	paymentService services.PaymentService
+	userService    services.UserService
 }
 
-func NewPaymentHandler(paymentService services.PaymentService) *PaymentHandler {
+func NewPaymentHandler(paymentService services.PaymentService, userService services.UserService) *PaymentHandler {
 	return &PaymentHandler{
 		paymentService: paymentService,
+		userService:    userService,
 	}
 }
 
@@ -29,6 +32,17 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		response.ValidationErrorResponse(c, err)
 		return
 	}
+
+	user, err := h.userService.GetByUserId(req.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.ErrorResponse(c, http.StatusNotFound, "Failed to get user by user_id", err)
+		} else {
+			response.ErrorResponse(c, http.StatusInternalServerError, "Failed to get user", err)
+		}
+		return
+	}
+	fmt.Println(user)
 
 	payment, err := h.paymentService.ProcessPayment(c, &req)
 	if err != nil {

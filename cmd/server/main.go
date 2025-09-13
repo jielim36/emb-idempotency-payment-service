@@ -28,15 +28,19 @@ func main() {
 
 	// Initialize repositories
 	paymentRepo := repositories.NewPaymentRepository()
+	walletRepo := repositories.NewWalletRepository()
+	userRepo := repositories.NewUserRepository()
 
 	// Initialize services
-	paymentService := services.NewPaymentService(paymentRepo)
+	paymentService := services.NewPaymentService(paymentRepo, walletRepo)
+	userService := services.NewUserService(userRepo, walletRepo)
 
 	// Initialize controllers
-	paymentHandler := handlers.NewPaymentHandler(paymentService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService, userService)
+	userHandler := handlers.NewUserHandler(userService)
 
 	// Setup routes
-	router := routes.RegisterRoutes(paymentHandler)
+	router := routes.RegisterRoutes(paymentHandler, userHandler)
 
 	// Register validators
 	validator.RegisterValidators()

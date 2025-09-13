@@ -6,7 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterRoutes(paymentHandler *handlers.PaymentHandler) *gin.Engine {
+func RegisterRoutes(
+	paymentHandler *handlers.PaymentHandler,
+	userHandler *handlers.UserHandler,
+) *gin.Engine {
 	router := gin.Default()
 
 	// Health check endpoint
@@ -20,9 +23,14 @@ func RegisterRoutes(paymentHandler *handlers.PaymentHandler) *gin.Engine {
 	v1 := router.Group("/api/v1")
 	{
 		v1.POST("/pay", paymentHandler.ProcessPayment)
-
 		v1.GET("/payments/transaction/:transactionId", paymentHandler.GetPaymentByTransactionID)
 		v1.GET("/payments", paymentHandler.GetAll)
+
+		userGrp := v1.Group("/users")
+		{
+			userGrp.GET("", userHandler.GetAll)
+			userGrp.POST("/generate", userHandler.Generate)
+		}
 	}
 
 	return router

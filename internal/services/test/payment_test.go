@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"payment-service/internal/models"
+	"payment-service/internal/repositories"
 	mock_repositories "payment-service/internal/repositories/mock"
 	"payment-service/internal/services"
 	"sync"
@@ -13,30 +14,62 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestProcessPayment(t *testing.T) {
-	repo := mock_repositories.NewMockPaymentRepository()
-	service := services.NewPaymentService(repo)
+func Initiate(
+	t *testing.T,
+	user *models.User,
+	wallet *models.Wallet,
+) (
+	paymentRepo repositories.PaymentRepository,
+	walletRepo repositories.WalletRepository,
+	userRepo repositories.UserRepository,
+	paymentService services.PaymentService,
+) {
+	paymentRepo = mock_repositories.NewMockPaymentRepository()
+	walletRepo = mock_repositories.NewMockWalletRepository()
+	userRepo = mock_repositories.NewMockUserRepository()
+	paymentService = services.NewPaymentService(paymentRepo, walletRepo)
 
+	// create testing data
+	err := userRepo.Create(nil, user)
+	assert.NoError(t, err, "failed to create user")
+	err = walletRepo.Create(nil, wallet)
+	assert.NoError(t, err, "failed to create wallet")
+
+	return
+}
+
+func TestProcessPayment(t *testing.T) {
 	ctx := &gin.Context{}
+
+	user := &models.User{
+		UserID: "user_1",
+	}
+	wallet := &models.Wallet{
+		UserID:  user.UserID,
+		Balance: decimal.NewFromInt(1000000),
+	}
 	req := &models.PaymentRequest{
-		UserID:        "user123",
+		UserID:        user.UserID,
 		Amount:        decimal.NewFromInt(100),
 		TransactionID: "tx123",
 	}
 
-	exist, err := service.GetPaymentByTransactionID(req.TransactionID)
+	_, _, _, paymentService := Initiate(t, user, wallet)
+
+	// validate is new transaction id
+	exist, err := paymentService.GetPaymentByTransactionID(req.TransactionID)
 	assert.Nil(t, exist)
 	assert.NotNil(t, err)
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 
 	// First time: create new payment
-	payment, err := service.ProcessPayment(ctx, req)
+	payment, err := paymentService.ProcessPayment(ctx, req)
 	assert.NoError(t, err)
 	assert.NotNil(t, payment)
 	assert.Equal(t, "tx123", payment.TransactionID)
 
 	// Second time: should return existing payment (Idempotency)
-	payment2, err := service.ProcessPayment(ctx, req)
+	payment2, err := paymentService.ProcessPayment(ctx, req)
 	assert.NoError(t, err)
 	assert.NotNil(t, payment2)
 	assert.Equal(t, payment.UserID, payment2.UserID)
@@ -44,15 +77,21 @@ func TestProcessPayment(t *testing.T) {
 }
 
 func TestProcessPaymentConcurrent(t *testing.T) {
-	repo := mock_repositories.NewMockPaymentRepository()
-	service := services.NewPaymentService(repo)
-
 	ctx := &gin.Context{}
-	req := &models.PaymentRequest{
-		UserID:        "user123",
-		Amount:        decimal.NewFromInt(100),
-		TransactionID: "tx_concurrent",
+	user := &models.User{
+		UserID: "user_1",
 	}
+	wallet := &models.Wallet{
+		UserID:  user.UserID,
+		Balance: decimal.NewFromInt(1000000),
+	}
+	req := &models.PaymentRequest{
+		UserID:        user.UserID,
+		Amount:        decimal.NewFromInt(100),
+		TransactionID: "tx123",
+	}
+
+	_, _, _, paymentService := Initiate(t, user, wallet)
 
 	// We'll run 10 concurrent goroutines trying to process the same transaction
 	var wg sync.WaitGroup
@@ -67,7 +106,7 @@ func TestProcessPaymentConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			payment, err := service.ProcessPayment(ctx, req)
+			payment, err := paymentService.ProcessPayment(ctx, req)
 
 			mu.Lock()
 			results = append(results, payment)

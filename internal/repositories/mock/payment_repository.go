@@ -3,6 +3,7 @@ package mock_repositories
 import (
 	"errors"
 	"payment-service/internal/models"
+	"payment-service/internal/repositories"
 
 	"gorm.io/gorm"
 )
@@ -11,7 +12,7 @@ type MockPaymentRepository struct {
 	payments map[string]*models.Payment
 }
 
-func NewMockPaymentRepository() *MockPaymentRepository {
+func NewMockPaymentRepository() repositories.PaymentRepository {
 	return &MockPaymentRepository{payments: make(map[string]*models.Payment)}
 }
 
@@ -38,17 +39,7 @@ func (f *MockPaymentRepository) GetByTransactionID(transactionID string) (*model
 	return nil, gorm.ErrRecordNotFound
 }
 
-func (f *MockPaymentRepository) GetByUserID(userID string) ([]models.Payment, error) {
-	var result []models.Payment
-	for _, p := range f.payments {
-		if p.UserID == userID {
-			result = append(result, *p)
-		}
-	}
-	return result, nil
-}
-
-func (f *MockPaymentRepository) Update(payment *models.Payment) error {
+func (f *MockPaymentRepository) Update(tx *gorm.DB, payment *models.Payment) error {
 	if _, exists := f.payments[payment.TransactionID]; !exists {
 		return gorm.ErrRecordNotFound
 	}

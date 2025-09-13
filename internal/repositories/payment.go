@@ -11,8 +11,7 @@ type PaymentRepository interface {
 	Create(payment *models.Payment) error
 	GetAll() ([]*models.Payment, error)
 	GetByTransactionID(transactionID string) (*models.Payment, error)
-	GetByUserID(userID string) ([]models.Payment, error)
-	Update(payment *models.Payment) error
+	Update(tx *gorm.DB, payment *models.Payment) error
 	Delete(id uint) error
 }
 
@@ -46,16 +45,8 @@ func (r *paymentRepository) GetByTransactionID(transactionID string) (*models.Pa
 	return &payment, nil
 }
 
-func (r *paymentRepository) GetByUserID(userID string) ([]models.Payment, error) {
-	var payments []models.Payment
-	if err := r.db.Where("user_id = ?", userID).Find(&payments).Error; err != nil {
-		return nil, err
-	}
-	return payments, nil
-}
-
-func (r *paymentRepository) Update(payment *models.Payment) error {
-	return r.db.Save(payment).Error
+func (r *paymentRepository) Update(tx *gorm.DB, payment *models.Payment) error {
+	return tx.Save(payment).Error
 }
 
 func (r *paymentRepository) Delete(id uint) error {
