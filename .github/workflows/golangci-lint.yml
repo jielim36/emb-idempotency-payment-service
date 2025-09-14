@@ -8,20 +8,49 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  checks: write
 
 jobs:
   golangci:
     name: lint + unit tests
     runs-on: ubuntu-latest
+    
+    services:
+      docker:
+        image: docker:24.0.5
+        options: 
+          --privileged  # for testcontainers
+        
     steps:
       - uses: actions/checkout@v5
+      
       - uses: actions/setup-go@v6
         with:
           go-version: stable
+          cache: true 
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.4
+      
       - name: Run unit tests
         run: |
-          go test -v ./...
+          # set longer timeout for testcontainers
+          timeout 300s go test -v ./... -timeout 240s
+        env:
+          GOGC: 50
+          GOMEMLIMIT: 2GiB
+          # testcontainers config
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
+      
+      - name: Cleanup Docker resources
+        if: always()
+        run: |
+          docker system prune -f
+          docker volume prune -f
