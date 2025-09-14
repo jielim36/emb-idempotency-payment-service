@@ -3,6 +3,8 @@ package services_test
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"payment-service/internal/database"
 	"payment-service/internal/models"
 	"payment-service/internal/repositories"
@@ -21,7 +23,6 @@ import (
 
 type TestContext struct {
 	Ctx                  *gin.Context
-	Container            testcontainers.Container
 	EstimatedProcessTime time.Duration
 
 	// Dependencies
@@ -31,39 +32,53 @@ type TestContext struct {
 	PaymentService services.PaymentService
 }
 
-func Initiate(
-	t *testing.T,
-	user *models.User,
-	wallet *models.Wallet,
-) *TestContext {
-	ctx, _ := gin.CreateTestContext(nil)
+var (
+	testDB        *gorm.DB
+	testContainer testcontainers.Container
+)
 
-	db, container, err := database.InitTestDatabase()
+func TestMain(m *testing.M) {
+	var err error
+	testDB, testContainer, err = database.InitTestDatabase()
 	if err != nil {
-		t.Fatalf("failed to init test DB: %v", err)
+		log.Fatalf("failed to init test DB: %v", err)
 	}
 
-	paymentRepo := repositories.NewPaymentRepository(db)
-	walletRepo := repositories.NewWalletRepository(db)
-	userRepo := repositories.NewUserRepository(db)
-	paymentService := services.NewPaymentService(db, paymentRepo, walletRepo)
+	// 运行所有测试
+	code := m.Run()
 
-	// 初始化测试数据
-	err = userRepo.Create(db, user)
-	assert.NoError(t, err, "failed to create user")
-	err = walletRepo.Create(db, wallet)
-	assert.NoError(t, err, "failed to create wallet")
+	// 测试结束后关闭容器
+	if testContainer != nil {
+		_ = testContainer.Terminate(context.Background())
+	}
+
+	os.Exit(code)
+}
+
+func Initiate(t *testing.T, user *models.User, wallet *models.Wallet) *TestContext {
+	ctx, _ := gin.CreateTestContext(nil)
+
+	// Init
+	paymentRepo := repositories.NewPaymentRepository(testDB)
+	walletRepo := repositories.NewWalletRepository(testDB)
+	userRepo := repositories.NewUserRepository(testDB)
+	paymentService := services.NewPaymentService(testDB, paymentRepo, walletRepo)
+
+	// Clear old data
+	testDB.Exec("DELETE FROM payments")
+	testDB.Exec("DELETE FROM wallets")
+	testDB.Exec("DELETE FROM users")
+
+	assert.NoError(t, userRepo.Create(testDB, user))
+	assert.NoError(t, walletRepo.Create(testDB, wallet))
 
 	return &TestContext{
 		Ctx:                  ctx,
-		Container:            container,
 		EstimatedProcessTime: 4 * time.Second,
-
-		// Dependencies
-		PaymentRepo:    paymentRepo,
-		WalletRepo:     walletRepo,
-		UserRepo:       userRepo,
-		PaymentService: paymentService,
+		PaymentRepo:          paymentRepo,
+		WalletRepo:           walletRepo,
+		UserRepo:             userRepo,
+		PaymentService:       paymentService,
 	}
 }
 
@@ -82,9 +97,6 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	tc := Initiate(t, user, wallet)
-	defer func() {
-		_ = tc.Container.Terminate(context.Background())
-	}()
 
 	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
 		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
@@ -130,9 +142,6 @@ func TestMakePaymentWithDuplicatedTransactionId(t *testing.T) {
 	}
 
 	tc := Initiate(t, user, wallet)
-	defer func() {
-		_ = tc.Container.Terminate(context.Background())
-	}()
 
 	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
 		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
@@ -182,9 +191,6 @@ func TestProcessPaymentConcurrent(t *testing.T) {
 	}
 
 	tc := Initiate(t, user, wallet)
-	defer func() {
-		_ = tc.Container.Terminate(context.Background())
-	}()
 
 	goroutineCount := 10
 	var wg sync.WaitGroup

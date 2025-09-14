@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"payment-service/internal/models"
+	"sync"
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
@@ -14,7 +15,23 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+var (
+	testDB        *gorm.DB
+	testContainer testcontainers.Container
+	initOnce      sync.Once
+	initErr       error
+)
+
+// InitTestDatabase 只会在第一次调用时启动容器并初始化 DB
 func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
+	initOnce.Do(func() {
+		testDB, testContainer, initErr = startTestDatabase()
+	})
+	return testDB, testContainer, initErr
+}
+
+// startTestDatabase 封装容器启动和 DB 初始化逻辑
+func startTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 	ctx := context.Background()
 
 	req := testcontainers.ContainerRequest{
@@ -53,4 +70,12 @@ func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 
 	log.Println("Test database initialized successfully")
 	return db, container, nil
+}
+
+// TerminateTestDatabase 在所有测试结束后关闭容器
+func TerminateTestDatabase() {
+	if testContainer != nil {
+		_ = testContainer.Terminate(context.Background())
+		log.Println("Test database container terminated")
+	}
 }
