@@ -21,6 +21,7 @@ func main() {
 	// Set Gin mode
 	gin.SetMode(cfg.Server.GinMode)
 
+	// TODO: Implement DI Container for future
 	// Initialize database
 	if err := database.InitDatabase(cfg); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)

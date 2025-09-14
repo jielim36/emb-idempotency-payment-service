@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TODO: implement Redis for future
 // Simulate redis
 type LockManager struct {
 	// key: idempotencyKey(transactionID), value: *sync.Mutex
