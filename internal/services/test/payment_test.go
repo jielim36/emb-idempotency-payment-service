@@ -82,7 +82,9 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	tc := Initiate(t, user, wallet)
-	defer tc.Container.Terminate(context.Background())
+	defer func() {
+		_ = tc.Container.Terminate(context.Background())
+	}()
 
 	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
 		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
@@ -128,7 +130,9 @@ func TestMakePaymentWithDuplicatedTransactionId(t *testing.T) {
 	}
 
 	tc := Initiate(t, user, wallet)
-	defer tc.Container.Terminate(context.Background())
+	defer func() {
+		_ = tc.Container.Terminate(context.Background())
+	}()
 
 	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
 		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
@@ -178,7 +182,9 @@ func TestProcessPaymentConcurrent(t *testing.T) {
 	}
 
 	tc := Initiate(t, user, wallet)
-	defer tc.Container.Terminate(context.Background())
+	defer func() {
+		_ = tc.Container.Terminate(context.Background())
+	}()
 
 	goroutineCount := 10
 	var wg sync.WaitGroup

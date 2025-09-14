@@ -16,7 +16,6 @@ import (
 func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 	ctx := context.Background()
 
-	// 1. 启动临时 Postgres 容器
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:15",
 		Env:          map[string]string{"POSTGRES_PASSWORD": "testpass", "POSTGRES_DB": "testdb"},
@@ -31,7 +30,6 @@ func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 		return nil, nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
-	// 2. 获取容器的连接信息
 	host, _ := container.Host(ctx)
 	port, _ := container.MappedPort(ctx, "5432")
 	dsn := fmt.Sprintf(
@@ -39,18 +37,16 @@ func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 		host, port.Port(),
 	)
 
-	// 3. 连接 GORM
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
-		container.Terminate(ctx)
+		_ = container.Terminate(ctx)
 		return nil, nil, fmt.Errorf("failed to connect to test DB: %w", err)
 	}
 
-	// 4. 自动迁移表结构
 	if err := db.AutoMigrate(&models.Payment{}, &models.Wallet{}, &models.User{}); err != nil {
-		container.Terminate(ctx)
+		_ = container.Terminate(ctx)
 		return nil, nil, fmt.Errorf("failed to migrate test DB: %w", err)
 	}
 
