@@ -37,6 +37,7 @@ To ensure that duplicate requests with the same `transaction_id` do not create m
 
 ## Testing Instructions
 
+### API Testing
 1. Open the **Postman Collection** I created for this project: [Postman Collection](https://www.postman.com/aviation-geoscientist-80328098/workspace/emb).  
    > This collection includes all the API endpoints with example requests and can be used directly for testing.
 
@@ -47,42 +48,13 @@ To ensure that duplicate requests with the same `transaction_id` do not create m
 | --- | --- |
 | `base-url` | `http://localhost:8080/api/v1` |
 
----
+### How to connect PostgreSQL DB
+You can directly connect to the postgreSQL database to view the data through the following config:
+- `host`: `localhost`
+- `port`: `9999`
+- `username`: `postgres`
+- `password`: `postgres`
 
-## Example Request
-
-```bash
-POST /pay
-Content-Type: application/json
-
-{
-  "transaction_id": "unique123", # Idempotency key
-  "user_id": "1", # valid user id
-  "amount": 100 # greater than 0
-}
-```
-
----
-
-## Example Response
-
-**201 Created**
-
-```json
-{
-    "success": true,
-    "message": "Payment initiated successfully",
-    "data": {
-        "id": 10,
-        "user_id": "1",
-        "amount": 500,
-        "transaction_id": "unique7",
-        "status": "pending",
-        "created_at": "2025-09-13T09:01:55.49212Z",
-        "updated_at": "2025-09-13T09:01:57.495787Z"
-    }
-}
-```
 
 ---
 
@@ -190,4 +162,3 @@ emb-payment-backend  | [Info] message=Payment processing, failed to acquired the
 emb-payment-backend  | [GIN] 2025/09/13 - 09:10:02 | 201 |  100.804661ms |      172.19.0.1 | POST     "/api/v1/pay"
 ```
 </details>
-    
