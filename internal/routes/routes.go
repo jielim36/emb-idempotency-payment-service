@@ -29,6 +29,7 @@ func RegisterRoutes(
 		userGrp := v1.Group("/users")
 		{
 			userGrp.GET("", userHandler.GetAll)
+			userGrp.GET("/:userId", userHandler.GetDetail)
 			userGrp.POST("/generate", userHandler.Generate)
 		}
 	}

@@ -12,9 +12,10 @@ import (
 )
 
 type UserService interface {
-	Generate() (*models.User, *models.Wallet, error)
+	Generate() (*models.User, error)
 	GetAll() ([]*models.User, error)
 	GetByUserId(userId string) (*models.User, error)
+	GetUserDetail(userId string) (*models.User, error)
 }
 
 type userService struct {
@@ -38,7 +39,7 @@ func NewUserService(
 }
 
 // generate a user and wallet for testing used
-func (s *userService) Generate() (*models.User, *models.Wallet, error) {
+func (s *userService) Generate() (*models.User, error) {
 	DEFAULT_BALANCE := decimal.NewFromInt(10000000) // default 1 million
 
 	user := &models.User{
@@ -59,10 +60,11 @@ func (s *userService) Generate() (*models.User, *models.Wallet, error) {
 
 		return nil
 	}); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return user, wallet, nil
+	user.Wallet = wallet
+	return user, nil
 }
 
 func (s *userService) GetAll() ([]*models.User, error) {
@@ -71,4 +73,13 @@ func (s *userService) GetAll() ([]*models.User, error) {
 
 func (s *userService) GetByUserId(userId string) (*models.User, error) {
 	return s.userRepo.GetByUserId(userId)
+}
+
+func (s *userService) GetUserDetail(userId string) (*models.User, error) {
+	user, err := s.userRepo.GetByUserId(userId, "Wallet")
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

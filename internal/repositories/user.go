@@ -9,7 +9,7 @@ import (
 type UserRepository interface {
 	Create(tx *gorm.DB, user *models.User) error
 	GetAll() ([]*models.User, error)
-	GetByUserId(userId string) (*models.User, error)
+	GetByUserId(userId string, preloads ...string) (*models.User, error)
 }
 
 type userRepository struct {
@@ -31,11 +31,16 @@ func (r *userRepository) GetAll() ([]*models.User, error) {
 	}
 	return users, nil
 }
+func (r *userRepository) GetByUserId(userId string, preloads ...string) (*models.User, error) {
+	var user models.User
+	query := r.db.Where("user_id = ?", userId)
 
-func (r *userRepository) GetByUserId(userId string) (*models.User, error) {
-	var user *models.User
-	if err := r.db.Where("user_id = ?", userId).First(&user).Error; err != nil {
+	for _, preload := range preloads {
+		query = query.Preload(preload)
+	}
+
+	if err := query.First(&user).Error; err != nil {
 		return nil, err
 	}
-	return user, nil
+	return &user, nil
 }

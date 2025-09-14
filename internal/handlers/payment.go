@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"payment-service/internal/models"
@@ -33,7 +32,7 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.GetByUserId(req.UserID)
+	_, err := h.userService.GetByUserId(req.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.ErrorResponse(c, http.StatusNotFound, "Failed to get user by user_id", err)
@@ -42,7 +41,6 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		}
 		return
 	}
-	fmt.Println(user)
 
 	payment, err := h.paymentService.ProcessPayment(c, &req)
 	if err != nil {
