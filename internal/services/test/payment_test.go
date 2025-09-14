@@ -1,46 +1,73 @@
 package services_test
 
 import (
+	"context"
+	"fmt"
+	"payment-service/internal/database"
 	"payment-service/internal/models"
 	"payment-service/internal/repositories"
-	mock_repositories "payment-service/internal/repositories/mock"
 	"payment-service/internal/services"
+	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/testcontainers/testcontainers-go"
 	"gorm.io/gorm"
 )
+
+type TestContext struct {
+	Ctx                  *gin.Context
+	Container            testcontainers.Container
+	EstimatedProcessTime time.Duration
+
+	// Dependencies
+	PaymentRepo    repositories.PaymentRepository
+	WalletRepo     repositories.WalletRepository
+	UserRepo       repositories.UserRepository
+	PaymentService services.PaymentService
+}
 
 func Initiate(
 	t *testing.T,
 	user *models.User,
 	wallet *models.Wallet,
-) (
-	paymentRepo repositories.PaymentRepository,
-	walletRepo repositories.WalletRepository,
-	userRepo repositories.UserRepository,
-	paymentService services.PaymentService,
-) {
-	paymentRepo = mock_repositories.NewMockPaymentRepository()
-	walletRepo = mock_repositories.NewMockWalletRepository()
-	userRepo = mock_repositories.NewMockUserRepository()
-	paymentService = services.NewPaymentService(paymentRepo, walletRepo)
+) *TestContext {
+	ctx, _ := gin.CreateTestContext(nil)
 
-	// create testing data
-	err := userRepo.Create(nil, user)
+	db, container, err := database.InitTestDatabase()
+	if err != nil {
+		t.Fatalf("failed to init test DB: %v", err)
+	}
+
+	paymentRepo := repositories.NewPaymentRepository(db)
+	walletRepo := repositories.NewWalletRepository(db)
+	userRepo := repositories.NewUserRepository(db)
+	paymentService := services.NewPaymentService(db, paymentRepo, walletRepo)
+
+	// 初始化测试数据
+	err = userRepo.Create(db, user)
 	assert.NoError(t, err, "failed to create user")
-	err = walletRepo.Create(nil, wallet)
+	err = walletRepo.Create(db, wallet)
 	assert.NoError(t, err, "failed to create wallet")
 
-	return
+	return &TestContext{
+		Ctx:                  ctx,
+		Container:            container,
+		EstimatedProcessTime: 4 * time.Second,
+
+		// Dependencies
+		PaymentRepo:    paymentRepo,
+		WalletRepo:     walletRepo,
+		UserRepo:       userRepo,
+		PaymentService: paymentService,
+	}
 }
 
-func TestProcessPayment(t *testing.T) {
-	ctx := &gin.Context{}
-
+func TestFullFlow(t *testing.T) {
 	user := &models.User{
 		UserID: "user_1",
 	}
@@ -54,30 +81,89 @@ func TestProcessPayment(t *testing.T) {
 		TransactionID: "tx123",
 	}
 
-	_, _, _, paymentService := Initiate(t, user, wallet)
+	tc := Initiate(t, user, wallet)
+	defer tc.Container.Terminate(context.Background())
 
-	// validate is new transaction id
-	exist, err := paymentService.GetPaymentByTransactionID(req.TransactionID)
-	assert.Nil(t, exist)
-	assert.NotNil(t, err)
-	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
+		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
+		assert.Nil(t, exist)
+		assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	})
 
-	// First time: create new payment
-	payment, err := paymentService.ProcessPayment(ctx, req)
-	assert.NoError(t, err)
-	assert.NotNil(t, payment)
-	assert.Equal(t, "tx123", payment.TransactionID)
+	t.Run("First payment creation should succeed", func(t *testing.T) {
+		payment, err := tc.PaymentService.ProcessPayment(tc.Ctx, req)
+		assert.NoError(t, err)
+		assert.NotNil(t, payment)
+		assert.Equal(t, "tx123", payment.TransactionID)
+	})
+	time.Sleep(tc.EstimatedProcessTime)
 
-	// Second time: should return existing payment (Idempotency)
-	payment2, err := paymentService.ProcessPayment(ctx, req)
-	assert.NoError(t, err)
-	assert.NotNil(t, payment2)
-	assert.Equal(t, payment.UserID, payment2.UserID)
-	assert.Equal(t, payment.TransactionID, payment2.TransactionID)
+	t.Run("Check payment process result and wallet balance", func(t *testing.T) {
+		latestPayment, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
+		assert.NoError(t, err)
+
+		latestWallet, err := tc.WalletRepo.GetByUserId(user.UserID)
+		assert.NoError(t, err)
+
+		expectedStatus := []models.PaymentStatus{models.StatusCompleted, models.StatusFailed}
+		assert.True(t, slices.Contains(expectedStatus, latestPayment.Status), "Payment should be completed or failed")
+
+		expectedBalance := wallet.Balance.Sub(req.Amount)
+		assert.True(t, latestWallet.Balance.Equal(expectedBalance))
+	})
+}
+
+func TestMakePaymentWithDuplicatedTransactionId(t *testing.T) {
+	user := &models.User{
+		UserID: "user_1",
+	}
+	wallet := &models.Wallet{
+		UserID:  user.UserID,
+		Balance: decimal.NewFromInt(1000000),
+	}
+	req := &models.PaymentRequest{
+		UserID:        user.UserID,
+		Amount:        decimal.NewFromInt(100),
+		TransactionID: "tx123",
+	}
+
+	tc := Initiate(t, user, wallet)
+	defer tc.Container.Terminate(context.Background())
+
+	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
+		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
+		assert.Nil(t, exist)
+		assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	})
+
+	var payment *models.Payment
+	t.Run("First time: create new payment", func(t *testing.T) {
+		var err error
+		payment, err = tc.PaymentService.ProcessPayment(tc.Ctx, req)
+		assert.NoError(t, err)
+		assert.NotNil(t, payment)
+		assert.Equal(t, "tx123", payment.TransactionID)
+	})
+
+	t.Run("Second time: should return existing payment (Idempotency)", func(t *testing.T) {
+		payment2, err := tc.PaymentService.ProcessPayment(tc.Ctx, req)
+		assert.NoError(t, err)
+		assert.NotNil(t, payment2)
+		assert.Equal(t, payment.UserID, payment2.UserID)
+		assert.Equal(t, payment.TransactionID, payment2.TransactionID)
+	})
+
+	time.Sleep(tc.EstimatedProcessTime)
+	t.Run("Validate wallet balance only deducted once", func(t *testing.T) {
+		latestWallet, err := tc.WalletRepo.GetByUserId(user.UserID)
+		assert.NoError(t, err)
+
+		expectedBalance := wallet.Balance.Sub(req.Amount)
+		assert.True(t, latestWallet.Balance.Equal(expectedBalance), "wallet balance should only be deducted once")
+	})
 }
 
 func TestProcessPaymentConcurrent(t *testing.T) {
-	ctx := &gin.Context{}
 	user := &models.User{
 		UserID: "user_1",
 	}
@@ -91,47 +177,65 @@ func TestProcessPaymentConcurrent(t *testing.T) {
 		TransactionID: "tx123",
 	}
 
-	_, _, _, paymentService := Initiate(t, user, wallet)
+	tc := Initiate(t, user, wallet)
+	defer tc.Container.Terminate(context.Background())
 
-	// We'll run 10 concurrent goroutines trying to process the same transaction
+	goroutineCount := 10
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var results []*models.Payment
 	var errors []error
 
-	goroutineCount := 10
-	wg.Add(goroutineCount)
+	t.Run("Run concurrent ProcessPayment calls", func(t *testing.T) {
+		wg.Add(goroutineCount)
 
-	for i := 0; i < goroutineCount; i++ {
-		go func() {
-			defer wg.Done()
+		for i := 0; i < goroutineCount; i++ {
+			go func() {
+				defer wg.Done()
 
-			payment, err := paymentService.ProcessPayment(ctx, req)
+				payment, err := tc.PaymentService.ProcessPayment(tc.Ctx, req)
 
-			mu.Lock()
-			results = append(results, payment)
-			errors = append(errors, err)
-			mu.Unlock()
-		}()
-	}
-
-	wg.Wait()
-
-	// Verify: Only the first call should create a new payment, others should reuse it
-	var nonNilPayments []*models.Payment
-	for _, p := range results {
-		if p != nil {
-			nonNilPayments = append(nonNilPayments, p)
+				mu.Lock()
+				results = append(results, payment)
+				errors = append(errors, err)
+				mu.Unlock()
+			}()
 		}
-	}
 
-	assert.Equal(t, 10, len(results), "All goroutines should return a result")
-	assert.Equal(t, 1, uniquePaymentsCount(nonNilPayments), "Only one unique payment should be created")
+		wg.Wait()
+	})
 
-	// All errors should be nil
-	for _, err := range errors {
+	time.Sleep(tc.EstimatedProcessTime)
+	t.Run("Verify only one unique payment created", func(t *testing.T) {
+		var nonNilPayments []*models.Payment
+		for _, p := range results {
+			if p != nil {
+				nonNilPayments = append(nonNilPayments, p)
+			}
+		}
+
+		assert.Equal(t, goroutineCount, len(results), "All goroutines should return a result")
+		assert.Equal(t, 1, uniquePaymentsCount(nonNilPayments), "Only one unique payment should be created")
+	})
+
+	t.Run("Verify no errors returned", func(t *testing.T) {
+		for _, err := range errors {
+			assert.NoError(t, err)
+		}
+	})
+
+	t.Run("Verify wallet balance only deducted once", func(t *testing.T) {
+		latestWallet, err := tc.WalletRepo.GetByUserId(user.UserID)
 		assert.NoError(t, err)
-	}
+
+		expectedBalance := wallet.Balance.Sub(req.Amount)
+		debugMsg := fmt.Sprintf("Wallet balance should only be deducted once | Wallet Before: %s, Wallet After: %s, Payment Amount: %s",
+			wallet.Balance,
+			latestWallet.Balance,
+			req.Amount.String(),
+		)
+		assert.True(t, latestWallet.Balance.Equal(expectedBalance), debugMsg)
+	})
 }
 
 // Helper: count unique payments by TransactionID

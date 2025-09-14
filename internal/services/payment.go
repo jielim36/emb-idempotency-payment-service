@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"payment-service/internal/database"
 	"payment-service/internal/models"
 	"payment-service/internal/redis"
 	"payment-service/internal/repositories"
@@ -30,12 +29,13 @@ type paymentService struct {
 }
 
 func NewPaymentService(
+	db *gorm.DB,
 	paymentRepo repositories.PaymentRepository,
 	walletRepo repositories.WalletRepository,
 ) PaymentService {
 	return &paymentService{
 		logger:      logger.Logger{},
-		db:          database.GetDB(),
+		db:          db,
 		lockManager: redis.NewLockManager(),
 		paymentRepo: paymentRepo,
 		walletRepo:  walletRepo,
@@ -99,11 +99,6 @@ func (s *paymentService) simulatePaymentProcessing(payment *models.Payment) {
 		payment.Status = models.StatusFailed
 	}
 
-	// Skip for unit test
-	if s.db == nil {
-		return
-	}
-
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Update payment status
 		if err := s.paymentRepo.Update(tx, payment); err != nil {
@@ -124,6 +119,8 @@ func (s *paymentService) simulatePaymentProcessing(payment *models.Payment) {
 	}); err != nil {
 		s.logger.Error(err, "Failed to simulate payment processing")
 	}
+
+	s.logger.Info("[Simulate] Payment Processing Done")
 }
 
 func (s *paymentService) getByTransactionIdAndUserId(payment *models.PaymentRequest) (*models.Payment, error) {

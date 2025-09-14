@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"payment-service/internal/database"
 	"payment-service/internal/models"
 
 	"gorm.io/gorm"
@@ -19,9 +18,9 @@ type paymentRepository struct {
 	db *gorm.DB
 }
 
-func NewPaymentRepository() PaymentRepository {
+func NewPaymentRepository(db *gorm.DB) PaymentRepository {
 	return &paymentRepository{
-		db: database.GetDB(),
+		db: db,
 	}
 }
 

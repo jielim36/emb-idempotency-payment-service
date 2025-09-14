@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"payment-service/internal/database"
 	"payment-service/internal/models"
 
 	"gorm.io/gorm"
@@ -17,8 +16,8 @@ type userRepository struct {
 	db *gorm.DB
 }
 
-func NewUserRepository() UserRepository {
-	return &userRepository{db: database.GetDB()}
+func NewUserRepository(db *gorm.DB) UserRepository {
+	return &userRepository{db: db}
 }
 
 func (r *userRepository) Create(tx *gorm.DB, user *models.User) error {

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"payment-service/internal/database"
 	"payment-service/internal/models"
 	"payment-service/internal/repositories"
 	"payment-service/internal/utils/logger"
@@ -26,12 +25,13 @@ type userService struct {
 }
 
 func NewUserService(
+	db *gorm.DB,
 	userRepo repositories.UserRepository,
 	walletRepo repositories.WalletRepository,
 ) UserService {
 	return &userService{
 		logger:     logger.Logger{},
-		db:         database.GetDB(),
+		db:         db,
 		userRepo:   userRepo,
 		walletRepo: walletRepo,
 	}

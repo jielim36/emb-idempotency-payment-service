@@ -28,13 +28,14 @@ func main() {
 	}
 
 	// Initialize repositories
-	paymentRepo := repositories.NewPaymentRepository()
-	walletRepo := repositories.NewWalletRepository()
-	userRepo := repositories.NewUserRepository()
+	db := database.GetDB()
+	paymentRepo := repositories.NewPaymentRepository(db)
+	walletRepo := repositories.NewWalletRepository(db)
+	userRepo := repositories.NewUserRepository(db)
 
 	// Initialize services
-	paymentService := services.NewPaymentService(paymentRepo, walletRepo)
-	userService := services.NewUserService(userRepo, walletRepo)
+	paymentService := services.NewPaymentService(db, paymentRepo, walletRepo)
+	userService := services.NewUserService(db, userRepo, walletRepo)
 
 	// Initialize controllers
 	paymentHandler := handlers.NewPaymentHandler(paymentService, userService)

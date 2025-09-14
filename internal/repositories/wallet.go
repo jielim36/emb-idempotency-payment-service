@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"payment-service/internal/database"
 	"payment-service/internal/models"
 
 	"gorm.io/gorm"
@@ -19,8 +18,8 @@ type walletRepository struct {
 	db *gorm.DB
 }
 
-func NewWalletRepository() WalletRepository {
-	return &walletRepository{db: database.GetDB()}
+func NewWalletRepository(db *gorm.DB) WalletRepository {
+	return &walletRepository{db: db}
 }
 
 func (r *walletRepository) Create(tx *gorm.DB, wallet *models.Wallet) error {
