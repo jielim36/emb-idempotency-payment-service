@@ -42,6 +42,13 @@ func NewPaymentService(
 	}
 }
 
+// ProcessPayment handles a user's payment request in a safe and idempotent manner.
+// It first acquires a lock using the transaction ID to prevent duplicate processing.
+// If the payment with the same transaction ID already exists, it returns the existing record.
+// The function validates the user's wallet balance before creating a new payment record.
+// The payment status is initially set to Pending, and the actual processing is performed asynchronously
+// via simulatePaymentProcessing, which updates the payment status and wallet balance if successful.
+// Any errors encountered during validation, record creation, or wallet retrieval are returned immediately.
 func (s *paymentService) ProcessPayment(ctx *gin.Context, req *models.PaymentRequest) (*models.Payment, error) {
 	idempotencyKey := req.TransactionID
 	if _, ok := s.lockManager.TryLock(idempotencyKey); !ok {
@@ -88,6 +95,10 @@ func (s *paymentService) ProcessPayment(ctx *gin.Context, req *models.PaymentReq
 	return payment, nil
 }
 
+// simulatePaymentProcessing simulates the processing of a payment for testing or demo purposes.
+// It randomly determines the payment outcome with a 90% chance of success and a 10% chance of failure.
+// The function also simulates a processing delay between 1 to 3 seconds.
+// If the payment succeeds, it updates the user's wallet balance within a database transaction.
 func (s *paymentService) simulatePaymentProcessing(payment *models.Payment) {
 	// Simulate processing time (1-3 seconds)
 	time.Sleep(time.Duration(1+rand.Intn(3)) * time.Second)

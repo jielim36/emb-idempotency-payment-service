@@ -9,7 +9,7 @@ import (
 // Simulate redis
 type LockManager struct {
 	// key: idempotencyKey(transactionID), value: *sync.Mutex
-	// Enhance: apply worker to clear expired locks everyday
+	// TODO: apply worker to clear expired locks everyday
 	locks sync.Map
 }
 

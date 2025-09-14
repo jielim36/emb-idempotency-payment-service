@@ -22,7 +22,7 @@ var (
 	initErr       error
 )
 
-// InitTestDatabase 只会在第一次调用时启动容器并初始化 DB
+// InitTestDatabase The container will be started and the DB will be initialized only on the first call
 func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 	initOnce.Do(func() {
 		testDB, testContainer, initErr = startTestDatabase()
@@ -30,7 +30,6 @@ func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 	return testDB, testContainer, initErr
 }
 
-// startTestDatabase 封装容器启动和 DB 初始化逻辑
 func startTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 	ctx := context.Background()
 
@@ -139,12 +138,12 @@ func TerminateTestDatabase() {
 	}
 }
 
-// GetTestDB 获取测试数据库实例
+// GetTestDB get instance
 func GetTestDB() *gorm.DB {
 	return testDB
 }
 
-// CleanTestData 清理测试数据
+// CleanTestData clean data before next unit test run
 func CleanTestData() error {
 	if testDB == nil {
 		return nil
