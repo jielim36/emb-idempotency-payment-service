@@ -29,6 +29,10 @@ type TestContext struct {
 	WalletRepo     repositories.WalletRepository
 	UserRepo       repositories.UserRepository
 	PaymentService services.PaymentService
+	UserService    services.UserService
+
+	User   *models.User
+	Wallet *models.Wallet
 }
 
 var (
@@ -50,20 +54,24 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func Initiate(t *testing.T, user *models.User, wallet *models.Wallet) *TestContext {
+func Initiate(t *testing.T) *TestContext {
 	ctx, _ := gin.CreateTestContext(nil)
 
 	// Init
 	paymentRepo := repositories.NewPaymentRepository(testDB)
 	walletRepo := repositories.NewWalletRepository(testDB)
 	userRepo := repositories.NewUserRepository(testDB)
+
 	paymentService := services.NewPaymentService(testDB, paymentRepo, walletRepo)
+	userService := services.NewUserService(testDB, userRepo, walletRepo)
 
 	// Clear old data
 	_ = database.CleanTestData()
 
-	assert.NoError(t, userRepo.Create(testDB, user))
-	assert.NoError(t, walletRepo.Create(testDB, wallet))
+	user, err := userService.Generate()
+	assert.NoError(t, err, "should generate user and wallet successful")
+	assert.NotNil(t, user, "should create user")
+	assert.NotNil(t, user.Wallet, "should create wallet")
 
 	return &TestContext{
 		Ctx:                  ctx,
@@ -72,24 +80,25 @@ func Initiate(t *testing.T, user *models.User, wallet *models.Wallet) *TestConte
 		WalletRepo:           walletRepo,
 		UserRepo:             userRepo,
 		PaymentService:       paymentService,
+		UserService:          userService,
+
+		User:   user,
+		Wallet: user.Wallet,
 	}
 }
 
 func TestFullFlow(t *testing.T) {
-	user := &models.User{
-		UserID: "user_1",
-	}
-	wallet := &models.Wallet{
-		UserID:  user.UserID,
-		Balance: decimal.NewFromInt(1000000),
-	}
+	tc := Initiate(t)
+	var (
+		user   = tc.User
+		wallet = tc.Wallet
+	)
+
 	req := &models.PaymentRequest{
 		UserID:        user.UserID,
 		Amount:        decimal.NewFromInt(100),
 		TransactionID: "tx123",
 	}
-
-	tc := Initiate(t, user, wallet)
 
 	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
 		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
@@ -121,20 +130,17 @@ func TestFullFlow(t *testing.T) {
 }
 
 func TestMakePaymentWithDuplicatedTransactionId(t *testing.T) {
-	user := &models.User{
-		UserID: "user_1",
-	}
-	wallet := &models.Wallet{
-		UserID:  user.UserID,
-		Balance: decimal.NewFromInt(1000000),
-	}
+	tc := Initiate(t)
+	var (
+		user   = tc.User
+		wallet = tc.Wallet
+	)
+
 	req := &models.PaymentRequest{
 		UserID:        user.UserID,
 		Amount:        decimal.NewFromInt(100),
 		TransactionID: "tx123",
 	}
-
-	tc := Initiate(t, user, wallet)
 
 	t.Run("Validate new transaction ID should not exist", func(t *testing.T) {
 		exist, err := tc.PaymentService.GetPaymentByTransactionID(req.TransactionID)
@@ -170,20 +176,17 @@ func TestMakePaymentWithDuplicatedTransactionId(t *testing.T) {
 }
 
 func TestProcessPaymentConcurrent(t *testing.T) {
-	user := &models.User{
-		UserID: "user_1",
-	}
-	wallet := &models.Wallet{
-		UserID:  user.UserID,
-		Balance: decimal.NewFromInt(1000000),
-	}
+	tc := Initiate(t)
+	var (
+		user   = tc.User
+		wallet = tc.Wallet
+	)
+
 	req := &models.PaymentRequest{
 		UserID:        user.UserID,
 		Amount:        decimal.NewFromInt(100),
 		TransactionID: "tx123",
 	}
-
-	tc := Initiate(t, user, wallet)
 
 	goroutineCount := 10
 	var wg sync.WaitGroup
