@@ -1,7 +1,6 @@
 package services_test
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -44,13 +43,9 @@ func TestMain(m *testing.M) {
 		log.Fatalf("failed to init test DB: %v", err)
 	}
 
-	// 运行所有测试
 	code := m.Run()
 
-	// 测试结束后关闭容器
-	if testContainer != nil {
-		_ = testContainer.Terminate(context.Background())
-	}
+	database.TerminateTestDatabase()
 
 	os.Exit(code)
 }
@@ -65,9 +60,7 @@ func Initiate(t *testing.T, user *models.User, wallet *models.Wallet) *TestConte
 	paymentService := services.NewPaymentService(testDB, paymentRepo, walletRepo)
 
 	// Clear old data
-	testDB.Exec("DELETE FROM payments")
-	testDB.Exec("DELETE FROM wallets")
-	testDB.Exec("DELETE FROM users")
+	_ = database.CleanTestData()
 
 	assert.NoError(t, userRepo.Create(testDB, user))
 	assert.NoError(t, walletRepo.Create(testDB, wallet))
