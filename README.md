@@ -27,6 +27,9 @@ To ensure that duplicate requests with the same `transaction_id` do not create m
     - If a record with the same `transaction_id` exists, return it immediately.
 4. **Start Processing**
     - Simulate processing with a `1s` delay and create the record.
+    - Trigger goroutine for simulate processing
+        - update payment status to `completed` or `failed`
+        - update wallet balance if completed
 5. **Return Response**
     - Return `201 Created` with the newly created payment record.
 
@@ -34,7 +37,9 @@ To ensure that duplicate requests with the same `transaction_id` do not create m
 
 ## Testing Instructions
 
-1. Open the [Postman Collection](https://www.postman.com/aviation-geoscientist-80328098/workspace/emb).
+1. Open the **Postman Collection** I created for this project: [Postman Collection](https://www.postman.com/aviation-geoscientist-80328098/workspace/emb).  
+   > This collection includes all the API endpoints with example requests and can be used directly for testing.
+
 2. Switch to the **DEV** environment.
 3. Set the following environment variable:
 
@@ -51,9 +56,9 @@ POST /pay
 Content-Type: application/json
 
 {
-  "transaction_id": "unique123",
-  "user_id": "1",
-  "amount": 100
+  "transaction_id": "unique123", # Idempotency key
+  "user_id": "1", # valid user id
+  "amount": 100 # greater than 0
 }
 ```
 
@@ -81,9 +86,18 @@ Content-Type: application/json
 
 ---
 
+## Unit Test
+We implemented unit tests for the Payment Service using [Testcontainers-Go](https://golang.testcontainers.org/)  and service-level testing. This approach allows us to spin up a **PostgreSQL** instance during tests, providing:
+
+- Realistic database testing environment
+- Isolation per test session
+- Automatic cleanup after tests
+
+
+
 ## Concurrency Testing
 
-To test concurrency and ensure the idempotency logic works as expected, we use the `https://github.com/rakyll/hey` library to do concurrency testing
+To test concurrency and ensure the idempotency logic works as expected, we use the [hey](https://github.com/rakyll/hey) library to do concurrency testing
 
 #### Running the Test
 
