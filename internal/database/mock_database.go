@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"payment-service/internal/models"
+	"time"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -20,7 +21,7 @@ func InitTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 		Image:        "postgres:15",
 		Env:          map[string]string{"POSTGRES_PASSWORD": "testpass", "POSTGRES_DB": "testdb"},
 		ExposedPorts: []string{"5432/tcp"},
-		WaitingFor:   wait.ForListeningPort("5432/tcp"),
+		WaitingFor:   wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
