@@ -105,6 +105,11 @@ func (s *paymentService) simulatePaymentProcessing(payment *models.Payment) {
 			return err
 		}
 
+		if payment.Status != models.StatusCompleted {
+			return nil
+		}
+
+		// Update wallet balance if completed
 		wallet, err := s.walletRepo.GetForUpdate(tx, payment.UserID)
 		if err != nil {
 			return err
