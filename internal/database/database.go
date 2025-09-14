@@ -38,9 +38,9 @@ func InitDatabase(cfg *config.Config) error {
 
 	// Auto-migrate the schema
 	if err := DB.AutoMigrate(
-		&models.Payment{},
-		&models.Wallet{},
 		&models.User{},
+		&models.Wallet{},
+		&models.Payment{},
 	); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}

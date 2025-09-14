@@ -115,7 +115,11 @@ func startTestDatabase() (*gorm.DB, testcontainers.Container, error) {
 		return nil, nil, fmt.Errorf("failed to ping database: %w", pingErr)
 	}
 
-	if err := db.AutoMigrate(&models.Payment{}, &models.Wallet{}, &models.User{}); err != nil {
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.Wallet{},
+		&models.Payment{},
+	); err != nil {
 		_ = container.Terminate(ctx)
 		return nil, nil, fmt.Errorf("failed to migrate test DB: %w", err)
 	}
